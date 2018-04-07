@@ -1,0 +1,244 @@
+/**
+ * JJTree template file created by SF JavaCC plugin 1.5.28+ wizard for JavaCC 1.5.0+
+ */options
+{
+	STATIC = true;
+	VISITOR = true;
+}
+
+PARSER_BEGIN(ComplexNumbersCalculator)
+
+package complexNumbersCalculator;
+
+public class ComplexNumbersCalculator {
+	private static ComplexNumber previousValue = null;
+	private static ComplexNumber value = null;
+	private static int end = 0;
+	
+	public static void main( String[] args ) throws ParseException
+	{
+		ComplexNumbersCalculator parser = new ComplexNumbersCalculator(System.in);
+		System.out.println("Witaj w kalkulatorze liczb zespolonych by Bolo Team!");
+		System.out.println("Dostêpne narzêdzia:");
+		System.out.println("Dzia³ania: dodawanie('+'), odejmowanie('-'), mno¿enie('*'), dzielenie('/')");
+		System.out.println("Nawiasy: '(', ')'");
+		System.out.println("Wynik poprzedniego dzia³ania: '$'");
+		System.out.println("Czêœæ rzeczywista: 're(liczba)'");
+		System.out.println("Czêœæ urojona: 'im(liczba)'");
+		System.out.println("Sprzê¿enie: 'con(liczba)'");
+		System.out.println("Aby uzyskaæ wynik po wpisaniu wyra¿enia u¿yj znaku ';'");
+		System.out.println("Wszystkie obliczenia przeprowadzane s¹ w postaci kanonicznej");
+		System.out.println("Liczba w postaci trygonometrycznej: 'cos(k¹t)+isin(k¹t)'");
+		System.out.println("Liczba w postaci wyk³adniczej: 'e^(ik¹t)'");
+		System.out.println("Aby zakoñczyæ dzia³anie programu u¿yj komendy 'end'");
+		System.out.println();		
+		while (end==0)
+    	{
+      		System.out.print("WprowadŸ wyra¿enie: ");
+      		try
+      		{
+      			SimpleNode n = ComplexNumbersCalculator.start();
+      			System.out.println("Drzewo rozbioru syntaktycznego:");
+      			n.dump("");
+      			System.out.println();
+      			ComplexNumbersCalculatorTmpVisitor v = new ComplexNumbersCalculatorTmpVisitor();
+      			n.childrenAccept(v, null);
+        		switch (end)
+        		{
+          			case 0: 
+          			System.out.println("Wprowadzono poprawne wyra¿enie");
+          			System.out.println("Wynik: " + value.toString());
+          			System.out.println();
+          			previousValue = value;
+          			break;
+          			case 1: 
+          			System.out.println("Nast¹pi zakoñczenie programu");
+          			break;
+          			default : 
+          			break;
+        		}
+	      	}
+      		catch(Exception e)
+      		{
+				System.out.println("Wprowadzono niepoprawne wyra¿enie");
+      			System.out.println(e.getMessage());
+      			parser.ReInit(System.in);
+      		}
+      		catch(Error er)
+      		{
+				System.out.println("Wprowadzono niepoprawne wyra¿enie");
+				System.out.println("B³¹d. Za chwilê nast¹pi zakoñczenie programu");
+        		System.out.println(er.getMessage());
+       		 	break;
+      		}
+    	}
+	}
+}
+
+PARSER_END(ComplexNumbersCalculator)
+
+SKIP: { " " | "\t" | "\n" | "\r" }
+TOKEN: { < PLUS : "+" > }
+TOKEN: { < MINUS : "-" > }
+TOKEN: { < MULTIPLY : "*" > }
+TOKEN: { < DIVIDE : "/" > }
+TOKEN: { < #NUMBER : (["0"-"9"])+ | (["0"-"9"])+ "." (["0"-"9"])+ | (["0"-"9"])+ "." | "." (["0"-"9"])+ > }
+TOKEN: { < OPEN_PAR : "(" > }
+TOKEN: { < CLOSE_PAR : ")" > }
+TOKEN: { < PREVIOUS : "$" > }
+TOKEN: { < COMPLEX_NUMBER : <NUMBER>"i" | "i" | <NUMBER> > }
+TOKEN: { < REAL_PART : "re" > }
+TOKEN: { < IMAGINARY_PART : "im" > }
+TOKEN: { < CONJUGATE : "con" > }
+
+TOKEN: { < SINUS : ("i")?("sin"<NUMBER> | "sin"<OPEN_PAR><NUMBER><CLOSE_PAR>) > }
+TOKEN: { < COSINUS : "cos"<NUMBER> | "cos"<OPEN_PAR><NUMBER><CLOSE_PAR> > }
+TOKEN: { < E : "e^"<OPEN_PAR>"i"(<MULTIPLY>)?<NUMBER><CLOSE_PAR> > }
+
+SimpleNode start() :
+{}
+{
+	value = expression() ";" #semicolon
+	{
+		return jjtThis;
+	}
+|
+	"end" #end
+	{
+		end = 1;
+		return jjtThis;
+	}
+}
+
+ComplexNumber expression():
+{
+	ComplexNumber i;
+	ComplexNumber val;
+}
+{
+	val = term()
+	(
+		<PLUS> #plus
+		i = term()
+		{
+			val = val.add(i);
+		}
+	|
+		<MINUS> #minus
+		i = term()
+		{
+			val = val.subtract(i);
+		} 
+	)*
+	{ return val ; }
+}
+
+ComplexNumber term():
+{
+	ComplexNumber i ;
+	ComplexNumber val ;
+}
+{
+	val = primary()
+	(
+		<MULTIPLY> #multiply
+		i = primary()
+		{ val = val.multiply(i); }
+	|
+		<DIVIDE> #divide
+		i = primary()
+		{
+		 	if(i.getImaginaryPart()==0) val = val.divide(i.getRealPart());
+		 	else val = val.divide(i);
+		}		  
+	)*
+	{ return val ; }
+}
+
+ComplexNumber primary():
+{
+	Token t ;
+	ComplexNumber cn = null;
+}
+{
+	<PREVIOUS> #previous
+	{ return previousValue ; }
+|
+	<OPEN_PAR> #open_par cn=expression() <CLOSE_PAR> #close_par
+	{ return cn ; }
+|
+	<MINUS> #minus cn=primary() 
+	{
+		cn = cn.negation();
+		return cn;
+	}
+|
+	t=<COMPLEX_NUMBER> #complex_number
+	{
+		if(!t.image.contains("i"))
+		{
+			return new ComplexNumber(Double.parseDouble(t.image));
+		}
+		else
+		{
+			String s = t.image;
+			s = s.replace("i", "");
+			if(s.length()==0) return new ComplexNumber(0.0, 1.0);
+			else return new ComplexNumber(0.0, Double.parseDouble(s));
+		}
+		
+	}
+| 
+	t=<COSINUS> #cosinus
+	{
+		String str = t.image;
+		str = str.replace("(", "");
+		str = str.replace(")", "");
+		str = str.replace("cos", "");
+		cn = new ComplexNumber(Math.cos(Math.toRadians(Double.parseDouble(str))));
+		return cn;
+	}
+| 
+	t=<SINUS> #sinus
+	{
+		String str2 = t.image;
+		str2 = str2.replace("(", "");
+		str2 = str2.replace(")", "");
+		str2 = str2.replace("sin", "");
+		if(!str2.contains("i")) return new ComplexNumber(Math.sin(Math.toRadians(Double.parseDouble(str2))));
+		else
+		{
+			str2 = str2.replace("i", "");
+			return new ComplexNumber(0.0, Math.sin(Math.toRadians(Double.parseDouble(str2))));
+		}		
+	}
+|
+	t=<E> #e
+	{
+		String str3 = t.image;
+		str3 = str3.replace("e^", "");
+		str3 = str3.replace("(", "");
+		str3 = str3.replace(")", "");
+		str3 = str3.replace("*", "");
+		str3 = str3.replace("i", "");
+		return new ComplexNumber(Math.cos(Math.toRadians(Double.parseDouble(str3))), Math.sin(Math.toRadians(Double.parseDouble(str3))));
+	}
+|
+	<REAL_PART> #real_part <OPEN_PAR> #open_par cn=expression() <CLOSE_PAR> #close_par
+	{
+		cn = new ComplexNumber(cn.getRealPart());
+		return cn;
+	}
+|
+	<IMAGINARY_PART> #imaginary_part <OPEN_PAR> #open_par cn=expression() <CLOSE_PAR> #close_par
+	{
+		cn = new ComplexNumber(0.0, cn.getImaginaryPart());
+		return cn;
+	}
+|
+	<CONJUGATE> #conjugate <OPEN_PAR> #open_par cn=expression() <CLOSE_PAR> #close_par
+	{
+		cn = cn.conjugate();
+		return cn;
+	}
+}
